@@ -328,3 +328,18 @@ test("raw-text elements with a leading newline hydrate and update correctly", as
   await expect(pre).toContainText("CHANGED");
   await expect(pre).not.toContainText("CODE");
 });
+
+// A child insertion anchor is not the parent's dynamic attribute target.
+test("parent attributes retain their own binding beside dynamic children", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto(URL);
+  const parent = page.locator("#parent-attribute-anchors");
+  await expect(parent).toHaveAttribute("data-state", "ready");
+  await page.locator("#parent-attribute-toggle").click();
+  await expect(page.locator("#parent-attribute-child")).toHaveText("shown");
+  await page.locator("#parent-attribute-toggle").click();
+  await expect(page.locator("#parent-attribute-child")).toHaveCount(0);
+  await expect(parent).toHaveAttribute("data-state", "ready");
+  expect(errors).toEqual([]);
+});

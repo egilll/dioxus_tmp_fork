@@ -11,6 +11,7 @@ fn app() -> Element {
     use_hook(dioxus::fullstack::commit_initial_chunk);
 
     rsx! {
+        ParentAttributesWithChildAnchors {}
         DangerousInnerHtml {}
         AdjacentDynamicTexts {}
         LongEmptyRuns {}
@@ -536,6 +537,31 @@ fn LongEmptyRuns() -> Element {
                 j.set("[j]".to_string());
             },
             "fill"
+        }
+    }
+}
+
+#[component]
+fn ParentAttributesWithChildAnchors() -> Element {
+    let mut state = use_signal(|| "pending");
+    let mut shown = use_signal(|| false);
+    #[cfg(feature = "web")]
+    use_effect(move || state.set("ready"));
+    #[cfg(not(feature = "web"))]
+    let _ = &mut state;
+
+    rsx! {
+        div {
+            id: "parent-attribute-anchors",
+            "data-state": "{state}",
+            if shown() {
+                span { id: "parent-attribute-child", "shown" }
+            }
+            button {
+                id: "parent-attribute-toggle",
+                onclick: move |_| shown.set(!shown()),
+                "Toggle child"
+            }
         }
     }
 }

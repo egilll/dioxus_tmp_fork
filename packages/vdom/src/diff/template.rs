@@ -82,9 +82,9 @@ impl<'a> StaticElement<'a> {
 
     /// Iterate dynamic anchors with attributes that target this element.
     pub fn dynamic_anchors(self) -> impl Iterator<Item = DynamicAnchor<'a>> + 'a {
-        self.vnode
-            .dynamic_anchors()
-            .filter(move |anchor| anchor.parent_element_op_index() == Some(self.op))
+        self.vnode.dynamic_anchors().filter(move |anchor| {
+            anchor.parent_element_op_index() == Some(self.op) && anchor.attrs().len() > 0
+        })
     }
 }
 
@@ -724,6 +724,33 @@ mod tests {
             .expect("nested dynamic anchor");
 
         assert!(anchor.is_parent_append_target());
+    }
+
+    #[test]
+    fn element_attribute_anchors_exclude_dynamic_children() {
+        let mut builder = RuntimeTemplateBuilder::default();
+        builder.open_element("main", None);
+        builder.dynamic_attr();
+        builder.dynamic_node(true);
+        builder.open_element("button", None);
+        builder.dynamic_attr();
+        builder.close_element();
+        builder.close_element();
+
+        let vnode = vnode_from_builder(builder, 1, 2);
+        let root = vnode
+            .children()
+            .find_map(|child| match child {
+                VNodeChild::Element(element) => Some(element),
+                _ => None,
+            })
+            .expect("root element");
+
+        assert_eq!(root.dynamic_anchors().count(), 1);
+        assert!(
+            root.dynamic_anchors()
+                .all(|anchor| anchor.attrs().len() > 0)
+        );
     }
 
     #[test]
