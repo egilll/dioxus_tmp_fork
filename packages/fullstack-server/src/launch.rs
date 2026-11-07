@@ -5,7 +5,7 @@ use anyhow::Context;
 use axum::{
     Router,
     body::Body,
-    extract::{Request, State},
+    extract::{ConnectInfo, Request, State},
     routing::IntoMakeService,
 };
 use dioxus_vdom::{ComponentFunction, Element};
@@ -142,9 +142,15 @@ pub async fn serve_router(
 
     // If we're not in debug mode, just serve the app normally
     if !cfg!(debug_assertions) {
-        axum::serve(listener, serve_callback().await.unwrap())
-            .await
-            .unwrap();
+        axum::serve(
+            listener,
+            serve_callback()
+                .await
+                .unwrap()
+                .into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap();
         return;
     }
 
@@ -171,7 +177,7 @@ pub async fn serve_router(
         };
 
         match res {
-            Either::Left(Ok((tcp_stream, _remote_addr))) => {
+            Either::Left(Ok((tcp_stream, remote_addr))) => {
                 let mut make_service = make_service.clone();
                 let mut shutdown_rx = shutdown_tx.subscribe();
 
@@ -196,6 +202,7 @@ pub async fn serve_router(
                                 .call(())
                                 .await
                                 .unwrap()
+                                .layer(axum::Extension(ConnectInfo(remote_addr)))
                                 .map_request(|req: Request<Incoming>| req.map(Body::new)),
                         ),
                     );
