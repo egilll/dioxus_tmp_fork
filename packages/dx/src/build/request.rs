@@ -3166,10 +3166,18 @@ impl BuildRequest {
     }
 
     fn cargo_fingerprint_dir(&self) -> PathBuf {
-        self.target_dir
-            .join(self.triple.to_string())
-            .join(&self.profile)
-            .join(".fingerprint")
+        self.cargo_profile_dir().join(".fingerprint")
+    }
+
+    /// The directory cargo builds this profile into. Cargo names the `dev` and `test` profiles'
+    /// directory `debug`, and `bench`'s `release`.
+    fn cargo_profile_dir(&self) -> PathBuf {
+        let dir = match self.profile.as_str() {
+            "dev" | "test" => "debug",
+            "bench" => "release",
+            profile => profile,
+        };
+        self.target_dir.join(self.triple.to_string()).join(dir)
     }
 
     fn is_apple_target(&self) -> bool {
