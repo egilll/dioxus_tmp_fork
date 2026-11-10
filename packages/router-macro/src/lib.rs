@@ -525,6 +525,8 @@ impl RouteEnum {
             impl ::std::str::FromStr for #name {
                 type Err = dioxus_router::routable::RouteParseError<#error_name>;
 
+                // A catch-all route makes the fallbacks after it unreachable.
+                #[allow(unreachable_code)]
                 fn from_str(s: &str) -> ::std::result::Result<Self, Self::Err> {
                     let route = s;
                     let (route, raw_hash) = route.split_once('#').unwrap_or((route, ""));
