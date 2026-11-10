@@ -1226,7 +1226,8 @@ impl BuildRequest {
     /// This might stop working if/when cargo stabilizes contents-based fingerprinting.
     ///
     /// `dx` compiles everything with `--target` which ends up with a structure like:
-    /// `target/<triple>/<profile>/.fingerprint/<package_name>-<hash>`
+    /// `target/<triple>/<profile>/.fingerprint/<package_name>-<hash>`, or, in cargo's newer
+    /// build-dir layout, `target/<triple>/<profile>/build/<package_name>/<hash>/fingerprint`
     ///
     /// Normally you can't rely on this structure (ie with `cargo build`) but the explicit
     /// target arg guarantees this will work.
@@ -1280,17 +1281,29 @@ impl BuildRequest {
             }
         }
 
-        let fingerprint_dir = self.cargo_fingerprint_dir();
-        for entry in std::fs::read_dir(&fingerprint_dir)
-            .into_iter()
-            .flatten()
-            .flatten()
-        {
+        let busted = |name: &str| {
+            let name = name.replace('-', "_");
+            bust.iter().any(|bust| bust.replace('-', "_") == name)
+        };
+        let entries = |dir: PathBuf| std::fs::read_dir(dir).into_iter().flatten().flatten();
+
+        // Cargo's classic layout: `<profile>/.fingerprint/<package>-<hash>`.
+        for entry in entries(self.cargo_fingerprint_dir()) {
             if let Some(fname) = entry.file_name().to_str() {
                 if let Some((name, _)) = fname.rsplit_once('-') {
-                    if bust.contains(name) {
+                    if busted(name) {
                         _ = std::fs::remove_dir_all(entry.path());
                     }
+                }
+            }
+        }
+
+        // Cargo's newer build-dir layout: `<profile>/build/<package>/<hash>/fingerprint`.
+        for package in entries(self.cargo_build_units_dir()) {
+            let is_busted = package.file_name().to_str().is_some_and(busted);
+            if is_busted {
+                for unit in entries(package.path()) {
+                    _ = std::fs::remove_dir_all(unit.path().join("fingerprint"));
                 }
             }
         }
@@ -3131,12 +3144,15 @@ impl BuildRequest {
         args.push(format!(r#"profile.{profile}.strip=false"#));
 
         // If the user defined the profile in the Cargo.toml, we don't need to add it to our adhoc list
-        if !self
-            .workspace
-            .cargo_toml
-            .profile
-            .custom
-            .contains_key(&self.profile)
+        // Built-in profiles always exist, and cargo rejects `inherits` on them.
+        let built_in = matches!(profile, "dev" | "release" | "test" | "bench");
+        if !built_in
+            && !self
+                .workspace
+                .cargo_toml
+                .profile
+                .custom
+                .contains_key(&self.profile)
         {
             // Otherwise, we need to add the profile arguments to make it adhoc
             let inherits = if self.release { "release" } else { "dev" };
@@ -3167,6 +3183,11 @@ impl BuildRequest {
 
     fn cargo_fingerprint_dir(&self) -> PathBuf {
         self.cargo_profile_dir().join(".fingerprint")
+    }
+
+    /// Where cargo's newer build-dir layout keeps each unit: `<profile>/build/<package>/<hash>/`.
+    fn cargo_build_units_dir(&self) -> PathBuf {
+        self.cargo_profile_dir().join("build")
     }
 
     /// The directory cargo builds this profile into. Cargo names the `dev` and `test` profiles'
