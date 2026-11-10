@@ -79,7 +79,6 @@ fullstack = [
   "dioxus-web?/document",
   "dioxus-web?/hydrate",
   "dioxus-server?/document",
-  "dioxus-web?/devtools",
   "dioxus-web?/mounted",
   "dioxus-web?/document"
 ]
